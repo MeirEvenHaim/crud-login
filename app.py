@@ -5,14 +5,27 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from datetime import datetime, timedelta
 from sqlalchemy import Column, Integer, String, Date, Text, Boolean, ForeignKey, Enum
 from sqlalchemy.orm import relationship
+from flask_cors import CORS
+import os
+from werkzeug.utils import secure_filename
+
+
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'  # Adjust your database URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'your_jwt_secret_key'
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'jiff', 'png', 'txt', 'py', 'js', 'gif'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
+CORS(app)
+
+
+UPLOAD_FOLDER = 'uploads'
+
 
 class Register(db.Model):
     __tablename__ = 'register'
@@ -132,6 +145,28 @@ def is_client():
     return current_user['role'] == 'client'
 
 
+
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+# File upload route
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"msg": "No file part in the request"}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"msg": "No file selected for uploading"}), 400
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        return jsonify({"msg": "File successfully uploaded"}), 201
+    else:
+        return jsonify({"msg": "Allowed file types are pdf, jpg, jpeg, gif, png, txt, py, js"}), 400
+
+
+
 # Endpoint to login and get a JWT token
 @app.route('/login', methods=['POST'])
 def login():
@@ -170,7 +205,6 @@ def register():
 
 # Endpoint to get details of all users (protected)
 @app.route('/register', methods=['GET'])
-@jwt_required()
 def get_all_users():
     users = Register.query.all()
     return jsonify([user.to_dict() for user in users]), 200
@@ -178,7 +212,6 @@ def get_all_users():
 
 # Endpoint to get details of a specific user by ID (protected)
 @app.route('/register/<int:user_id>', methods=['GET'])
-@jwt_required()
 def get_user(user_id):
     user = Register.query.get_or_404(user_id)
     return jsonify(user.to_dict()), 200
