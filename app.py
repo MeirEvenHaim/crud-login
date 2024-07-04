@@ -5,7 +5,7 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from datetime import datetime, timedelta
 from sqlalchemy import Column, Integer, String, Date, Text, Boolean, ForeignKey, Enum
 from sqlalchemy.orm import relationship
-from flask_cors import CORS
+from flask_cors import CORS , cross_origin
 import os
 from werkzeug.utils import secure_filename
 
@@ -15,13 +15,16 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'  # Adjust your database URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'your_jwt_secret_key'
+CORS(app)
 UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'jiff', 'png', 'txt', 'py', 'js', 'gif'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'jfif', 'png', 'txt', 'py', 'js', 'gif'}
+app.config['UPLOAD_FOLDER'] = 'uploads/'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Limit the maximum file size to 16MB
+
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
-CORS(app)
+
 
 
 UPLOAD_FOLDER = 'uploads'
@@ -136,8 +139,9 @@ class Loan(db.Model):
 
 
 # Helper functions for role checks
-def is_admin():
+def is_admin(current_user):
     current_user = get_jwt_identity()
+    print(current_user)
     return current_user['role'] == 'admin'
 
 def is_client():
@@ -189,7 +193,7 @@ def register():
     data = request.get_json()
     username = data.get('username')
     email = data.get('email')
-    password = data.get('password')
+    password = data.get('password_hash')
     address = data.get('address')
     role = data.get('role')
 
@@ -249,23 +253,36 @@ def delete_user(user_id):
     return jsonify({"msg": "User deleted"}), 200
 
 
-# Endpoint to create a new book (admin only)
+
 @app.route('/books', methods=['POST'])
-@jwt_required()
+@jwt_required()  
 def create_book():
-    if not is_admin():
+    current_user = get_jwt_identity()
+    if not is_admin(current_user):  # Pass current_user to is_admin() for role check
         return jsonify({"msg": "Admins only!"}), 403
-    data = request.get_json()
+    data = request.form
+    book_name = data['book_name']
+    author = data['author']
+    date_of_publish = datetime.strptime(data['date_of_publish'], '%Y-%m-%d').date()
+    summary = data.get('summary')
+    image = request.files['image'] if 'image' in request.files else None
+    series = True if data.get('series') == 'on' else False  # Checkbox value
+
     new_book = Book(
-        book_name=data['book_name'],
-        author=data['author'],
-        date_of_publish=datetime.strptime(data['date_of_publish'], '%Y-%m-%d').date(),
-        summary=data.get('summary'),
-        image=data.get('image'),
-        series=data.get('series', False)
+        book_name=book_name,
+        author=author,
+        date_of_publish=date_of_publish,
+        summary=summary,
+        image=image.filename if image else None,
+        series=series
     )
+
     db.session.add(new_book)
     db.session.commit()
+
+    if image:
+        image.save(os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(image.filename)))
+
     return jsonify(new_book.to_dict()), 201
 
 
