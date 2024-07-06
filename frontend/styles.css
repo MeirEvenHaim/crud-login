@@ -50,11 +50,58 @@ main {
     padding: 2rem;
     display: grid;
     gap: 2rem;
+    text-align: center; /* Center align content */
 }
 
 h1 {
     margin-bottom: 1rem;
     color: #24292e; /* Dark text color */
+}
+
+/* Hero section */
+.hero {
+    background-image: linear-gradient(to right, #4b6cb7, #182848); /* Gradient background */
+    height: 400px; /* Adjust height as needed */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    color: white;
+    margin-bottom: 2rem;
+    position: relative;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+}
+
+.hero h1 {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.hero p {
+    font-size: 1.5rem;
+}
+
+/* Button styles */
+button {
+    background-color: #0366d6; /* GitHub primary button color */
+    color: white;
+    border: none;
+    padding: 1rem 2rem;
+    cursor: pointer;
+    font-size: 1rem;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    display: inline-block;
+    text-align: center;
+    text-decoration: none;
+    margin: 4px 2px;
+}
+
+button:hover {
+    background-color: #0547a5; /* GitHub darker hover color */
+    transform: scale(1.05); /* Scale effect on hover */
 }
 
 /* Book container styles */
@@ -90,6 +137,62 @@ h1 {
     height: auto;
     border-radius: 4px;
     margin-bottom: 0.5rem;
+}
+
+/* Carousel styles */
+.carousel-container {
+    margin-top: 2rem;
+    max-width: 800px; /* Adjust as needed */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.carousel-item {
+    position: relative;
+    display: none;
+}
+
+.carousel-item.active {
+    display: block;
+}
+
+.carousel-img {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.carousel-caption {
+    position: absolute;
+    bottom: 10px;
+    left: 15px;
+    color: #fff;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.carousel-nav {
+    display: flex;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.carousel-nav button {
+    background-color: #0366d6;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    margin: 0 5px;
+}
+
+.carousel-nav button.active {
+    background-color: #0547a5;
 }
 
 /* Form styles */
@@ -147,28 +250,6 @@ select {
 textarea {
     resize: vertical;
     min-height: 100px;
-}
-
-/* Button styles */
-button {
-    background-color: #0366d6; /* GitHub primary button color */
-    color: white;
-    border: none;
-    padding: 1rem 2rem;
-    cursor: pointer;
-    font-size: 1rem;
-    border-radius: 4px;
-    transition: background-color 0.3s ease;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    display: inline-block;
-    text-align: center;
-    text-decoration: none;
-    margin: 4px 2px;
-}
-
-button:hover {
-    background-color: #0547a5; /* GitHub darker hover color */
-    transform: scale(1.05); /* Scale effect on hover */
 }
 
 /* Table styles */
