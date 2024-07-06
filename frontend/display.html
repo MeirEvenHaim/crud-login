@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Display Books</title>
+    <link rel="stylesheet" href="styles.css">
+    <img src="static/uploads/${book.image}" alt="${book.book_name}">
+</head>
+
+<body>
+
+    <header>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="loan.html">Borrow a Book</a></li>
+                <li><a href="register.html">Register</a></li>
+                <li><a href="display.html">Display Books</a></li>
+                <li><a href="#" onclick="logout()">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <h1>Books</h1>
+
+        <div class="book-container">
+            <!-- Display existing books -->
+            <div id="booksContainer">
+                <!-- Books will be dynamically added here -->
+            </div>
+
+            <!-- Form to add a new book -->
+            <form id="addBookForm">
+                <label for="book_name">Book Name:</label><br>
+                <input type="text" id="book_name" name="book_name" required><br>
+
+                <label for="author">Author:</label><br>
+                <input type="text" id="author" name="author" required><br>
+
+                <label for="date_of_publish">Date of Publish:</label><br>
+                <input type="date" id="date_of_publish" name="date_of_publish" required><br>
+
+                <label for="summary">Summary:</label><br>
+                <textarea id="summary" name="summary" rows="4" required></textarea><br>
+
+                <label for="image">Image:</label><br>
+                <input type="file" id="image" name="image"><br>
+
+                <label for="series">Series:</label>
+                <input type="checkbox" id="series" name="series"><br>
+
+                <button type="submit">Add Book</button>
+            </form>
+        </div>
+    </main>
+
+    <footer>
+        <p>Contact us at: library@example.com</p>
+    </footer>
+
+    <script>
+        const SERVER = "http://127.0.0.1:5000";
+
+        async function fetchBooks() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('You must be logged in to view books!');
+                window.location.href = 'login.html';
+                return;
+            }
+
+            try {
+                const response = await axios.get(SERVER + `/books`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const booksContainer = document.getElementById('booksContainer');
+                booksContainer.innerHTML = ''; // Clear existing content
+
+                response.data.forEach(book => {
+                    const bookDiv = document.createElement('div');
+                    bookDiv.classList.add('book-item');
+                    bookDiv.innerHTML = `
+                        <h2>${book.book_name}</h2>
+                        <p><strong>Author:</strong> ${book.author}</p>
+                        <p>${book.summary}</p>
+                        ${book.image ? `<img src="static/uploads/${book.image}" alt="${book.book_name}">` : ''}
+                    `;
+                    booksContainer.appendChild(bookDiv);
+                });
+            } catch (error) {
+                console.error('Error fetching books:', error.response ? error.response.data : error.message);
+                alert('Failed to fetch books!');
+            }
+        }
+
+        async function addBook(event) {
+            event.preventDefault();
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('You must be logged in to add books!');
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const form = document.getElementById('addBookForm');
+            const formData = new FormData(form);
+
+            try {
+                await axios.post(SERVER + `/books`, formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                form.reset(); // Clear the form after successful submission
+                fetchBooks(); // Refresh the book list
+            } catch (error) {
+                alert('Failed to add book!');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+        }
+
+        // Event listener for form submission
+        document.getElementById('addBookForm').addEventListener('submit', addBook);
+
+        // Fetch books on page load
+        fetchBooks();
+    </script>
+</body>
+
+</html>
