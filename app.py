@@ -1,30 +1,31 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify , send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 from sqlalchemy import Column, Integer, String, Date, Text, Boolean, ForeignKey, Enum
 from sqlalchemy.orm import relationship
-from flask_cors import CORS , cross_origin
+from flask_cors import CORS 
 import os
 from werkzeug.utils import secure_filename
 
 
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
+CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'  # Adjust your database URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = 'your_jwt_secret_key'
-CORS(app)
+app.config['JWT_SECRET_KEY'] = '112334'
 UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'jfif', 'png', 'txt', 'py', 'js', 'gif'}
-app.config['UPLOAD_FOLDER'] = 'uploads/'
+ALLOWED_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.jfif', '.png', '.txt', '.py', '.js', '.gif'}
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Limit the maximum file size to 16MB
 
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
-
 
 
 UPLOAD_FOLDER = 'uploads'
@@ -154,8 +155,7 @@ def is_client():
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
-# File upload route
-@app.route('/upload', methods=['POST'])
+app.route('/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
         return jsonify({"msg": "No file part in the request"}), 400
@@ -165,11 +165,15 @@ def upload_file():
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-        return jsonify({"msg": "File successfully uploaded"}), 201
+        return jsonify({"msg": "File successfully uploaded", "filename": filename}), 201
     else:
         return jsonify({"msg": "Allowed file types are pdf, jpg, jpeg, gif, png, txt, py, js"}), 400
 
 
+# Serve the uploaded files
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 # Endpoint to login and get a JWT token
 @app.route('/login', methods=['POST'])
@@ -181,12 +185,14 @@ def login():
     user = Register.query.filter_by(username=username).first()
 
     if user and user.check_password(password):
-        access_token = create_access_token(identity={'username': user.username, 'role': user.role})
+        access_token = create_access_token(identity={
+            'username': user.username,
+            'role': user.role,
+            'id': user.id  # Include the user's ID in the JWT token
+        })
         return jsonify(access_token=access_token), 200
 
     return jsonify({"msg": "Bad username or password"}), 401
-
-
 # Endpoint to create a new user
 @app.route('/register', methods=['POST'])
 def register():
@@ -253,13 +259,13 @@ def delete_user(user_id):
     return jsonify({"msg": "User deleted"}), 200
 
 
-
 @app.route('/books', methods=['POST'])
-@jwt_required()  
+@jwt_required()
 def create_book():
     current_user = get_jwt_identity()
     if not is_admin(current_user):  # Pass current_user to is_admin() for role check
         return jsonify({"msg": "Admins only!"}), 403
+    
     data = request.form
     book_name = data['book_name']
     author = data['author']
@@ -268,23 +274,25 @@ def create_book():
     image = request.files['image'] if 'image' in request.files else None
     series = True if data.get('series') == 'on' else False  # Checkbox value
 
+    image_filename = None
+    if image:
+        image_filename = secure_filename(image.filename)
+        image_path = os.path.join(app.config['UPLOAD_FOLDER'], image_filename)
+        image.save(image_path)
+
     new_book = Book(
         book_name=book_name,
         author=author,
         date_of_publish=date_of_publish,
         summary=summary,
-        image=image.filename if image else None,
+        image=image_filename,
         series=series
     )
 
     db.session.add(new_book)
     db.session.commit()
 
-    if image:
-        image.save(os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(image.filename)))
-
     return jsonify(new_book.to_dict()), 201
-
 
 # Endpoint to get details of a specific book by ID (public)
 @app.route('/books/<int:id>', methods=['GET'])
@@ -332,22 +340,40 @@ def get_books():
 
 
 # Endpoint to create a new loan (admin only)
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
+    return response
+
+@app.route('/<path:path>', methods=['OPTIONS'])
+@app.route('/', methods=['OPTIONS'])
+def handle_options(path=None):
+    response = app.make_response('')
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
+    return response
+
+
 @app.route('/loans', methods=['POST'])
 @jwt_required()
 def create_loan():
-    if not is_admin():
+    current_user = get_jwt_identity()
+    if not is_admin(current_user):
         return jsonify({"msg": "Admins only!"}), 403
+
     data = request.get_json()
     book_id = data['book_id']
-    client_id = data['client_id']
-    admin_id = get_jwt_identity()['id']
+    client_id = data['register_id']  # Assuming `register_id` is the ID from the Register table
+    admin_id = current_user['id']  # Correctly retrieving admin's ID from JWT token
     return_date = datetime.strptime(data['return_date'], '%Y-%m-%d').date()
 
     new_loan = Loan(book_id=book_id, client_id=client_id, admin_id=admin_id, return_date=return_date)
     db.session.add(new_loan)
     db.session.commit()
     return jsonify(new_loan.to_dict()), 201
-
 
 # Endpoint to get details of all loans (protected)
 @app.route('/loans', methods=['GET'])
@@ -361,7 +387,8 @@ def get_loans():
 @app.route('/loans/<int:id>', methods=['DELETE'])
 @jwt_required()
 def delete_loan(id):
-    if not is_admin():
+    current_user = get_jwt_identity()
+    if not is_admin(current_user):
         return jsonify({"msg": "Admins only!"}), 403
     loan = Loan.query.get_or_404(id)
     db.session.delete(loan)
@@ -374,7 +401,6 @@ def delete_loan(id):
 def get_loan(id):
     loan = Loan.query.get_or_404(id)
     return jsonify(loan.to_dict()), 200
-
 
 if __name__ == "__main__":
     with app.app_context():
