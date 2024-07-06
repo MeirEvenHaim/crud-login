@@ -8,6 +8,25 @@ from sqlalchemy.orm import relationship
 from flask_cors import CORS 
 import os
 from werkzeug.utils import secure_filename
+from flask_mail import Mail, Message
+
+# Existing imports
+
+app = Flask(__name__)
+mail = Mail(app)
+
+# Existing configurations
+
+# Mail configuration
+app.config['MAIL_SERVER'] = 'smtp.yourmailserver.com'
+app.config['MAIL_PORT'] = 587  # Typically 587 for TLS, 465 for SSL
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'your_email@example.com'  # Your email username
+app.config['MAIL_PASSWORD'] = 'your_password'  # Your email password
+
+# Initialize Flask-Mail
+mail = Mail(app)
+
 
 
 
@@ -139,6 +158,13 @@ class Loan(db.Model):
         }
 
 
+
+# Function to send email
+def send_email(subject, recipient, body):
+    msg = Message(subject, recipients=[recipient])
+    msg.body = body
+    mail.send(msg)
+
 # Helper functions for role checks
 def is_admin(current_user):
     current_user = get_jwt_identity()
@@ -170,10 +196,17 @@ def upload_file():
         return jsonify({"msg": "Allowed file types are pdf, jpg, jpeg, gif, png, txt, py, js"}), 400
 
 
+    
+    
 # Serve the uploaded files
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+
+
+
 
 # Endpoint to login and get a JWT token
 @app.route('/login', methods=['POST'])
@@ -205,6 +238,7 @@ def register():
 
     if Register.query.filter_by(email=email).first():
         return jsonify({"msg": "Email already exists"}), 409
+    
 
     new_user = Register(username=username, email=email, password=password, address=address, role=role)
     db.session.add(new_user)
@@ -231,7 +265,8 @@ def get_user(user_id):
 @app.route('/register/<int:user_id>', methods=['PUT'])
 @jwt_required()
 def update_user(user_id):
-    if not is_admin():
+    current_user = get_jwt_identity()
+    if not is_admin(current_user):
         return jsonify({"msg": "Admins only!"}), 403
     data = request.get_json()
     user = Register.query.get_or_404(user_id)
@@ -251,7 +286,8 @@ def update_user(user_id):
 @app.route('/register/<int:user_id>', methods=['DELETE'])
 @jwt_required()
 def delete_user(user_id):
-    if not is_admin():
+    current_user = get_jwt_identity()
+    if not is_admin(current_user):
         return jsonify({"msg": "Admins only!"}), 403
     user = Register.query.get_or_404(user_id)
     db.session.delete(user)
@@ -373,6 +409,8 @@ def create_loan():
     new_loan = Loan(book_id=book_id, client_id=client_id, admin_id=admin_id, return_date=return_date)
     db.session.add(new_loan)
     db.session.commit()
+    
+    
     return jsonify(new_loan.to_dict()), 201
 
 # Endpoint to get details of all loans (protected)
